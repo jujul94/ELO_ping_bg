@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classement des Participants</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Classement des Participants</h1>
+            <p>Suivez le classement en temps réel et renseignez les prochains matchs pour mettre à jour les scores.</p>
+        </header>
+    
+        <!-- Bouton pour afficher/masquer le classement -->
+        <button id="toggle-button" class="show-ranking-btn" onclick="toggleClassement()">Afficher le Classement</button>
+    
+        <!-- Section pour afficher le classement -->
+        <section class="ranking" id="ranking" style="display: none;">
+            <!-- Classement des participants (sera rempli par JavaScript) -->
+        </section>
+    
+        <!-- Formulaire pour entrer les adversaires d’un match -->
+        <section class="match-update">
+            <h2>Mettre à jour le Classement</h2>
+
+            <form onsubmit="enregistrerMatch(); return false;">
+                <input type="text" id="player1" placeholder="Nom du gagnant" list="players-list" required>
+                <input type="text" id="player2" placeholder="Nom du perdant" list="players-list" required>
+                <datalist id="players-list">
+                    <!-- Options de joueurs générées dynamiquement par JavaScript -->
+                </datalist>
+                <button type="submit" class="update-btn">Enregistrer le Match</button>
+            </form>
+
+        </section>
+
+        <!-- Section pour afficher l'historique -->
+        <section class="match-history" id="match-history" style="display: none;">
+            <h2>Historique des matchs</h2>
+            <div id="history-details"></div>
+        </section>
+
+    </div>
+    
+    <script>
+    // Fonction pour basculer l'affichage du classement
+    let classementVisible = false;
+    let participants = [];
+    
+    // Charger les joueurs depuis le fichier JSON
+    fetch('/static/joueurs.json')
+        .then(response => response.json())
+        .then(data => {
+            participants = data;
+            remplirDatalist();  // Appeler la fonction pour remplir les options de autocomplétion
+        })
+        .catch(error => console.error('Erreur lors du chargement des joueurs:', error));
+
+    // Fonction pour remplir le datalist pour l'autocomplétion
+    function remplirDatalist() {
+        const datalist = document.getElementById('players-list');
+        datalist.innerHTML = '';  // Vider le datalist avant de le remplir
+
+        participants.forEach(participant => {
+            const option = document.createElement('option');
+            option.value = participant.name;
+            datalist.appendChild(option);
+        });
+    }
+
+    // Fonction pour afficher/masquer le classement
+    function toggleClassement() {
+        const rankingSection = document.getElementById('ranking');
+        const toggleButton = document.getElementById('toggle-button');  // Récupère le bouton
+        classementVisible = !classementVisible;
+
+        if (classementVisible) {
+            afficherClassement();
+            rankingSection.style.display = 'block';
+            toggleButton.textContent = 'Masquer le classement';  // Change le texte du bouton
+        } else {
+            rankingSection.style.display = 'none';
+            toggleButton.textContent = 'Afficher le classement';  // Restaure le texte initial
+        }
+    }
+
+    
+// Fonction pour afficher le classement
+function afficherClassement() {
+    const rankingSection = document.getElementById('ranking');
+    rankingSection.innerHTML = '';  // Effacer le classement actuel
+    participants
+        .sort((a, b) => b.score - a.score)  // Tri des participants par score décroissant
+        .forEach((participant, index) => {
+            const participantCard = document.createElement('div');
+            participantCard.className = 'participant-card';
+            
+            // Créer le titre du joueur et ajouter un gestionnaire d'événement
+            const participantTitle = document.createElement('h3');
+            participantTitle.textContent = `${index + 1}. ${participant.name}`;
+            
+            // Ajouter un gestionnaire d'événement pour afficher l'historique du joueur
+            participantTitle.addEventListener('click', () => afficherHistorique(participant.name));
+            
+            // Ajouter le titre et le score à la carte du participant
+            participantCard.appendChild(participantTitle);
+            const scoreParagraph = document.createElement('p');
+            scoreParagraph.textContent = `Score : ${participant.score}`;
+            participantCard.appendChild(scoreParagraph);
+            
+            // Ajouter la carte du participant à la section du classement
+            rankingSection.appendChild(participantCard);
+        });
+}
+    
+    // Fonction pour enregistrer le match et mettre à jour les scores selon le système ELO
+    function enregistrerMatch() {
+        const player1Name = document.getElementById('player1').value;
+        const player2Name = document.getElementById('player2').value;
+    
+        // Récupérer les joueurs concernés
+        const player1 = participants.find(p => p.name === player1Name);
+        const player2 = participants.find(p => p.name === player2Name);
+    
+        if (!player1 || !player2) {
+            alert("Un ou plusieurs joueurs sont introuvables !");
+            return;
+        }
+    
+        // Système de calcul ELO basique
+        const scoreDifference = Math.abs(player1.score - player2.score);
+        const K = 32 + (scoreDifference / 100) * 18; // K varie de 32 à 50 avec la différence de score
+
+        const expectedScore1 = 1 / (1 + Math.pow(10, (player2.score - player1.score) / 400));
+        const expectedScore2 = 1 / (1 + Math.pow(10, (player1.score - player2.score) / 400));
+    
+        // On suppose ici que player1 est le gagnant
+        player1.score = Math.round(player1.score + K * (1 - expectedScore1));
+        player2.score = Math.round(player2.score + K * (0 - expectedScore2));
+
+        // // Ajouter l'historique du match
+        // const dateMatch = new Date().toLocaleDateString();  // Date du match
+        // const historique1 = {
+        //     date: dateMatch,
+        //     opponent: player2Name,
+        //     result: "Gagné"
+        // };
+        // const historique2 = {
+        //     date: dateMatch,
+        //     opponent: player1Name,
+        //     result: "Perdu"
+        // };
+
+        // // Ajouter les informations à l'historique des joueurs
+        // player1.history.push(historique1);
+        // player2.history.push(historique2);
+    
+        // Mettre à jour l'affichage du classement après le match
+        afficherClassement();
+    
+        // Réinitialiser les champs de saisie
+        document.getElementById('player1').value = '';
+        document.getElementById('player2').value = '';
+        alert(`Le match entre ${player1Name} et ${player2Name} a été enregistré. Le classement a été mis à jour.`);
+    }
+    function afficherHistorique(joueurName) {
+        // Rechercher le joueur correspondant dans le tableau participants
+        const joueur = participants.find(p => p.name === joueurName);
+        
+        if (!joueur || !joueur.history) {
+            alert("Aucun historique de matchs disponible pour ce joueur.");
+            return;
+        }
+
+        // Afficher l'historique des matchs
+        const historyDetails = document.getElementById('history-details');
+        historyDetails.innerHTML = '';  // Effacer les précédents détails
+
+        joueur.history.forEach(match => {
+            const matchInfo = document.createElement('div');
+            matchInfo.className = 'match-info';
+            matchInfo.innerHTML = `
+                <p>Date: ${match.date}</p>
+                <p>Adversaire: ${match.adversaire}</p>
+                <p>Vainqueur: ${match.vainqueur ? 'Oui' : 'Non'}</p>
+            `;
+            historyDetails.appendChild(matchInfo);
+        });
+
+        // Afficher la section de l'historique
+        const historySection = document.getElementById('match-history');
+        historySection.style.display = 'block';
+
+}
+
+    
+    </script>
+    
+    </body>
+    </html>
