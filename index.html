@@ -51,7 +51,7 @@
     let participants = [];
     
     // Charger les joueurs depuis le fichier JSON
-    fetch('/static/joueurs.json')
+    fetch('ELO_ping_bg/static/joueurs.json')
         .then(response => response.json())
         .then(data => {
             participants = data;
